@@ -10,24 +10,23 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-m480z^(te-ckt5yg!v28e7%krw9uv*7elb5dj=1$u2y@)yng(1'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-m480z^(te-ckt5yg!v28e7%krw9uv*7elb5dj=1$u2y@)yng(1')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes', 'on')
 
+# Allowed hosts from environment variable
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Application definition
-
 INSTALLED_APPS = [
     'jazzmin',
     'chat',
@@ -42,11 +41,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'accounts', #custom user auth app
-   
 ]
 
 MIDDLEWARE = [
-        'corsheaders.middleware.CorsMiddleware',  # Add this at the top
+    'corsheaders.middleware.CorsMiddleware',  # Add this at the top
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -56,10 +54,22 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS configuration from environment variables
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() in ('true', '1', 'yes', 'on')
 
-# If you want to allow all origins (NOT recommended for production):
-# CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() for origin in 
+    os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
+    if origin.strip()
+]
+
+CORS_ALLOW_CREDENTIALS = os.environ.get('CORS_ALLOW_CREDENTIALS', 'True').lower() in ('true', '1', 'yes', 'on')
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in 
+    os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:5173').split(',')
+    if origin.strip()
+]
 
 ROOT_URLCONF = 'core.urls'
 
@@ -81,21 +91,41 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
+# Database configuration from environment variables
+# Default to SQLite for development, but allow PostgreSQL/MySQL for production
+DATABASE_ENGINE = os.environ.get('DATABASE_ENGINE', 'sqlite3')
 
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if DATABASE_ENGINE == 'postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DATABASE_NAME', 'your_db_name'),
+            'USER': os.environ.get('DATABASE_USER', 'your_db_user'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
+            'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
+            'PORT': os.environ.get('DATABASE_PORT', '5432'),
+        }
     }
-}
-
+elif DATABASE_ENGINE == 'mysql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get('DATABASE_NAME', 'your_db_name'),
+            'USER': os.environ.get('DATABASE_USER', 'your_db_user'),
+            'PASSWORD': os.environ.get('DATABASE_PASSWORD', ''),
+            'HOST': os.environ.get('DATABASE_HOST', 'localhost'),
+            'PORT': os.environ.get('DATABASE_PORT', '3306'),
+        }
+    }
+else:  # Default to SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / os.environ.get('DATABASE_NAME', 'db.sqlite3'),
+        }
+    }
 
 # Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -111,74 +141,38 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
-
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+LANGUAGE_CODE = os.environ.get('LANGUAGE_CODE', 'en-us')
+TIME_ZONE = os.environ.get('TIME_ZONE', 'UTC')
 USE_I18N = True
-
 USE_TZ = True
 
+# Static and Media files configuration
+STATIC_URL = os.environ.get('STATIC_URL', '/static/')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, os.environ.get('STATIC_DIR', 'static')),
+]
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
-
-STATIC_URL = 'static/'
+MEDIA_URL = os.environ.get('MEDIA_URL', '/media/')
+MEDIA_ROOT = os.path.join(BASE_DIR, os.environ.get('MEDIA_DIR', 'media'))
 
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-import os
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "uploads")
+# Custom user model
+AUTH_USER_MODEL = os.environ.get('AUTH_USER_MODEL', 'accounts.CustomUser')
 
-AUTH_USER_MODEL ="accounts.CustomUser"
-
-CORS_ALLOW_ALL_ORIGINS=False
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    # Add any other domains you need
-]
-CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    # Add any other frontend URLs you're using
-]
-
+# Django REST Framework configuration
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES':[
-        
+    'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ]
 }
 
-
-# In settings.py
-from datetime import timedelta
-
+# JWT Configuration
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Adjust as needed
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),     # Adjust as needed
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.environ.get('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', '15'))),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.environ.get('JWT_REFRESH_TOKEN_LIFETIME_DAYS', '1'))),
+    'ROTATE_REFRESH_TOKENS': os.environ.get('JWT_ROTATE_REFRESH_TOKENS', 'False').lower() in ('true', '1', 'yes', 'on'),
+    'BLACKLIST_AFTER_ROTATION': os.environ.get('JWT_BLACKLIST_AFTER_ROTATION', 'True').lower() in ('true', '1', 'yes', 'on'),
 }
-
-import os
-
-# Define the root directory for media files
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Store media files in a 'media' folder in the project root
-
-# URL that will be used to serve the media files
-MEDIA_URL = '/media/'
-
-# Static files for serving images, docs, and other media in development
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),  # Store static files in a 'static' folder in the project root
-]
