@@ -56,7 +56,7 @@ MIDDLEWARE = [
 ]
 
 # CORS configuration from environment variables
-CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() in ('true', '1', 'yes', 'on')
+CORS_ALLOW_ALL_ORIGINS = True# os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() in ('true', '1', 'yes', 'on')
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in 
