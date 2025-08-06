@@ -148,12 +148,17 @@ TIME_ZONE = os.environ.get('TIME_ZONE', 'UTC')
 USE_I18N = True
 USE_TZ = True
 
-# Static and Media files configuration
+# Static files configuration for production
 STATIC_URL = os.environ.get('STATIC_URL', '/static/')
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, os.environ.get('STATIC_DIR', 'static')),
-]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Where collectstatic puts files
 
+# Only include STATICFILES_DIRS if you have custom static files
+# Remove or comment out if you don't have a static directory with custom files
+# STATICFILES_DIRS = [
+#     os.path.join(BASE_DIR, os.environ.get('STATIC_DIR', 'static')),
+# ]
+
+# Media files configuration
 MEDIA_URL = os.environ.get('MEDIA_URL', '/media/')
 MEDIA_ROOT = os.path.join(BASE_DIR, os.environ.get('MEDIA_DIR', 'media'))
 
