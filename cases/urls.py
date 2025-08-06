@@ -11,7 +11,7 @@ urlpatterns = [
     path('cases/<int:pk>/', CaseDetailView.as_view(), name='case-detail'),
     
     # Case creation endpoints
-    path('cases/crypto/', CreateCryptoLossAPIView.as_view(), name='create-crypto-case'),
-    path('cases/social-media/', CreateSocialMediaRecoveryAPIView.as_view(), name='create-social-media-case'),
-    path('cases/money-recovery/', CreateMoneyRecoveryAPIView.as_view(), name='create-money-recovery-case'),
+    path('crypto/', CreateCryptoLossAPIView.as_view(), name='create-crypto-case'),
+    path('social-media/', CreateSocialMediaRecoveryAPIView.as_view(), name='create-social-media-case'),
+    path('money-recovery/', CreateMoneyRecoveryAPIView.as_view(), name='create-money-recovery-case'),
 ]
