@@ -68,7 +68,7 @@ CORS_ALLOW_CREDENTIALS = os.environ.get('CORS_ALLOW_CREDENTIALS', 'True').lower(
 
 CSRF_TRUSTED_ORIGINS = [
     origin.strip() for origin in 
-    os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:5173').split(',')
+    os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:5173,https://recovery-guard-backend.onrender.com').split(',')
     if origin.strip()
 ]
 
