@@ -13,6 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-m480z^(te-ckt5yg!v28e7%krw9uv*7elb5dj=1$u2y@)yng(1')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+DEBUG=True
 
 INSTALLED_APPS = [
     'jazzmin',
