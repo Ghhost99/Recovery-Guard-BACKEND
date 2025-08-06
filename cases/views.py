@@ -1,4 +1,4 @@
-# views.py - Improved version
+# views.py - Direct model instance creation version
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -6,6 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import status
 from django.db.models import Q
+from django.db import transaction
+from django.core.exceptions import ValidationError
 from .models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport
 from .serializers import (
     CaseSerializer, CryptoLossReportSerializer, 
@@ -60,42 +62,152 @@ class CreateCryptoLossAPIView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        data = request.data.copy()
-        data['customer'] = request.user.id
+        data = request.data
         
-        serializer = CryptoLossReportSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with transaction.atomic():
+                # Create CryptoLossReport instance directly
+                crypto_report = CryptoLossReport(
+                    customer=request.user,
+                    title=data.get('title', 'Crypto Loss Report'),
+                    description=data.get('description', ''),
+                    type='crypto',
+                    status=data.get('status', 'open'),
+                    priority=data.get('priority', 'normal'),
+                    
+                    # Crypto-specific fields
+                    amount_lost=data.get('amount_lost'),
+                    usdt_value=data.get('usdt_value'),
+                    txid=data.get('txid', ''),
+                    sender_wallet=data.get('sender_wallet', ''),
+                    receiver_wallet=data.get('receiver_wallet', ''),
+                    platform_used=data.get('platform_used', ''),
+                    blockchain_hash=data.get('blockchain_hash', ''),
+                    payment_method=data.get('payment_method', ''),
+                    crypto_type=data.get('crypto_type', ''),
+                    transaction_datetime=data.get('transaction_datetime'),
+                    loss_description=data.get('loss_description', ''),
+                    exchange_info=data.get('exchange_info', ''),
+                    wallet_backup=data.get('wallet_backup', False)
+                )
+                
+                # Validate and save
+                crypto_report.full_clean()
+                crypto_report.save()
+                
+                # Serialize for response
+                serializer = CryptoLossReportSerializer(crypto_report)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": e.message_dict}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create crypto loss report", "details": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class CreateSocialMediaRecoveryAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        data = request.data.copy()
-        data['customer'] = request.user.id
+        data = request.data
         
-        serializer = SocialMediaRecoverySerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with transaction.atomic():
+                # Create SocialMediaRecovery instance directly
+                social_recovery = SocialMediaRecovery(
+                    customer=request.user,
+                    title=data.get('title', 'Social Media Recovery Request'),
+                    description=data.get('description', ''),
+                    type='social_media',
+                    status=data.get('status', 'open'),
+                    priority=data.get('priority', 'normal'),
+                    
+                    # Social media specific fields
+                    platform=data.get('platform', ''),
+                    full_name=data.get('full_name', ''),
+                    email=data.get('email', ''),
+                    phone=data.get('phone', ''),
+                    username=data.get('username', ''),
+                    profile_url=data.get('profile_url', ''),
+                    profile_pic=data.get('profile_pic'),
+                    account_creation_date=data.get('account_creation_date'),
+                    last_access_date=data.get('last_access_date')
+                )
+                
+                # Validate and save
+                social_recovery.full_clean()
+                social_recovery.save()
+                
+                # Serialize for response
+                serializer = SocialMediaRecoverySerializer(social_recovery)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": e.message_dict}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create social media recovery request", "details": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class CreateMoneyRecoveryAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        data = request.data.copy()
-        data['customer'] = request.user.id
+        data = request.data
         
-        serializer = MoneyRecoveryReportSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with transaction.atomic():
+                # Create MoneyRecoveryReport instance directly
+                money_recovery = MoneyRecoveryReport(
+                    customer=request.user,
+                    title=data.get('title', 'Money Recovery Report'),
+                    description=data.get('description', ''),
+                    type='money_recovery',
+                    status=data.get('status', 'open'),
+                    priority=data.get('priority', 'normal'),
+                    
+                    # Money recovery specific fields
+                    first_name=data.get('first_name', ''),
+                    last_name=data.get('last_name', ''),
+                    phone=data.get('phone', ''),
+                    email=data.get('email', ''),
+                    identification=data.get('identification', ''),
+                    amount=data.get('amount'),
+                    ref_number=data.get('ref_number', ''),
+                    bank=data.get('bank', ''),
+                    iban=data.get('iban', ''),
+                    datetime=data.get('datetime')
+                )
+                
+                # Validate and save
+                money_recovery.full_clean()
+                money_recovery.save()
+                
+                # Serialize for response
+                serializer = MoneyRecoveryReportSerializer(money_recovery)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": e.message_dict}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to create money recovery report", "details": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 class CaseDetailView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -125,11 +237,76 @@ class CaseDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        serializer = self._get_serializer(case, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with transaction.atomic():
+                # Update fields directly on the model instance
+                data = request.data
+                
+                # Update base Case fields
+                base_fields = ['title', 'description', 'status', 'priority', 'resolution', 'resolution_status']
+                for field in base_fields:
+                    if field in data:
+                        setattr(case, field, data[field])
+                
+                # Update type-specific fields based on case type
+                if hasattr(case, 'cryptolossreport'):
+                    crypto_fields = [
+                        'amount_lost', 'usdt_value', 'txid', 'sender_wallet', 
+                        'receiver_wallet', 'platform_used', 'blockchain_hash', 
+                        'payment_method', 'crypto_type', 'transaction_datetime', 
+                        'loss_description', 'exchange_info', 'wallet_backup'
+                    ]
+                    for field in crypto_fields:
+                        if field in data:
+                            setattr(case.cryptolossreport, field, data[field])
+                    
+                elif hasattr(case, 'socialmediarecovery'):
+                    social_fields = [
+                        'platform', 'full_name', 'email', 'phone', 'username', 
+                        'profile_url', 'profile_pic', 'account_creation_date', 'last_access_date'
+                    ]
+                    for field in social_fields:
+                        if field in data:
+                            setattr(case.socialmediarecovery, field, data[field])
+                
+                elif hasattr(case, 'moneyrecoveryreport'):
+                    money_fields = [
+                        'first_name', 'last_name', 'phone', 'email', 'identification',
+                        'amount', 'ref_number', 'bank', 'iban', 'datetime'
+                    ]
+                    for field in money_fields:
+                        if field in data:
+                            setattr(case.moneyrecoveryreport, field, data[field])
+                
+                # Validate and save
+                case.full_clean()
+                case.save()
+                
+                # Save related objects if they exist
+                if hasattr(case, 'cryptolossreport'):
+                    case.cryptolossreport.full_clean()
+                    case.cryptolossreport.save()
+                elif hasattr(case, 'socialmediarecovery'):
+                    case.socialmediarecovery.full_clean()
+                    case.socialmediarecovery.save()
+                elif hasattr(case, 'moneyrecoveryreport'):
+                    case.moneyrecoveryreport.full_clean()
+                    case.moneyrecoveryreport.save()
+                
+                # Return serialized response
+                serializer = self._get_serializer(case)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+                
+        except ValidationError as e:
+            return Response(
+                {"error": "Validation error", "details": e.message_dict}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to update case", "details": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def delete(self, request, pk):
         case = get_object_or_404(Case, pk=pk)
