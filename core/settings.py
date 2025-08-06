@@ -22,7 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-m480z^(te-ckt5yg!v28e7%krw9uv*7elb5dj=1$u2y@)yng(1')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes', 'on')
+# DEBUG = //os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes', 'on')
 
 # Allowed hosts from environment variable
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
@@ -60,7 +60,7 @@ CORS_ALLOW_ALL_ORIGINS = True# os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False')
 
 CORS_ALLOWED_ORIGINS = [
     origin.strip() for origin in 
-    os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:5173').split(',')
+    os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:5173,https://recovery-guard-backend.onrender.com').split(',')
     if origin.strip()
 ]
 
