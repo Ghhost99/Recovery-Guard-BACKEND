@@ -274,151 +274,134 @@ class CreateMoneyRecoveryAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+from django.core.exceptions import ValidationError
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from .models import Case, SupportingDocuments
+from .serializers import (
+    CaseSerializer, 
+    CryptoLossReportSerializer, 
+    SocialMediaRecoverySerializer, 
+    MoneyRecoveryReportSerializer, 
+    SupportingDocumentsSerializer
+)
+
+def save_supporting_documents(case, files, descriptions):
+    """Helper function to save supporting documents"""
+    documents = []
+    for file, desc in zip(files, descriptions or []):
+        document = SupportingDocuments(
+            case=case,
+            file=file,
+            description=desc or None
+        )
+        document.full_clean()
+        document.save()
+        documents.append(document)
+    return documents
+
 class CaseDetailView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     
     def get(self, request, pk):
-        case = get_object_or_404(Case, pk=pk)
-        
-        # Check permissions
-        if not self._has_permission(request.user, case):
-            return Response(
-                {"error": "You do not have permission to view this case."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        """Retrieve case details"""
+        with transaction.atomic():
+            case = get_object_or_404(Case, pk=pk)
+            
+            # Check permissions
+            if not self._has_permission(request.user, case):
+                return Response(
+                    {"error": "You do not have permission to view this case."}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-        # Get the appropriate serializer based on case type
-        serializer = self._get_serializer(case)
-        response_data = serializer.data
-        
-        # Add supporting documents to response
-        documents = case.supporting_documents.all()
-        if documents.exists():
-            response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
-        
-        return Response(response_data, status=status.HTTP_200_OK)
+            serializer = self._get_serializer(case)
+            return Response(serializer.data, status=status.HTTP_200_OK)
     
     def put(self, request, pk):
-        case = get_object_or_404(Case, pk=pk)
-        
-        # Check permissions
-        if not self._has_permission(request.user, case):
-            return Response(
-                {"error": "You do not have permission to update this case."}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        """Update case details"""
+        with transaction.atomic():
+            case = get_object_or_404(Case, pk=pk)
+            
+            # Check permissions
+            if not self._has_permission(request.user, case):
+                return Response(
+                    {"error": "You do not have permission to update this case."}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-        data = request.data
-        files = request.FILES.getlist('supporting_documents')
-        descriptions = request.POST.getlist('document_descriptions')
-
-        try:
-            with transaction.atomic():
-                # Update fields directly on the model instance
+            # Get files and descriptions
+            files = request.FILES.getlist('supporting_documents')
+            descriptions = request.POST.getlist('document_descriptions')
+            
+            try:
+                # Get appropriate serializer
+                serializer = self._get_serializer(case, data=request.data, partial=True)
                 
-                # Update base Case fields
-                base_fields = ['title', 'description', 'status', 'priority', 'resolution', 'resolution_status']
-                for field in base_fields:
-                    if field in data:
-                        setattr(case, field, data[field])
-                
-                # Update type-specific fields based on case type
-                if hasattr(case, 'cryptolossreport'):
-                    crypto_fields = [
-                        'amount_lost', 'usdt_value', 'txid', 'sender_wallet', 
-                        'receiver_wallet', 'platform_used', 'blockchain_hash', 
-                        'payment_method', 'crypto_type', 'transaction_datetime', 
-                        'loss_description', 'exchange_info', 'wallet_backup'
-                    ]
-                    for field in crypto_fields:
-                        if field in data:
-                            setattr(case.cryptolossreport, field, data[field])
+                if serializer.is_valid():
+                    # Save the case instance
+                    instance = serializer.save()
                     
-                elif hasattr(case, 'socialmediarecovery'):
-                    social_fields = [
-                        'platform', 'full_name', 'email', 'phone', 'username', 
-                        'profile_url', 'profile_pic', 'account_creation_date', 'last_access_date'
-                    ]
-                    for field in social_fields:
-                        if field in data:
-                            setattr(case.socialmediarecovery, field, data[field])
-                
-                elif hasattr(case, 'moneyrecoveryreport'):
-                    money_fields = [
-                        'first_name', 'last_name', 'phone', 'email', 'identification',
-                        'amount', 'ref_number', 'bank', 'iban', 'datetime'
-                    ]
-                    for field in money_fields:
-                        if field in data:
-                            setattr(case.moneyrecoveryreport, field, data[field])
-                
-                # Validate and save
-                case.full_clean()
-                case.save()
-                
-                # Save related objects if they exist
-                if hasattr(case, 'cryptolossreport'):
-                    case.cryptolossreport.full_clean()
-                    case.cryptolossreport.save()
-                elif hasattr(case, 'socialmediarecovery'):
-                    case.socialmediarecovery.full_clean()
-                    case.socialmediarecovery.save()
-                elif hasattr(case, 'moneyrecoveryreport'):
-                    case.moneyrecoveryreport.full_clean()
-                    case.moneyrecoveryreport.save()
-                
-                # Save additional supporting documents if provided
-                new_documents = []
-                if files:
-                    new_documents = save_supporting_documents(case, files, descriptions)
-                
-                # Return serialized response
-                serializer = self._get_serializer(case)
-                response_data = serializer.data
-                
-                # Add all supporting documents to response
-                all_documents = case.supporting_documents.all()
-                if all_documents.exists():
-                    response_data['supporting_documents'] = SupportingDocumentsSerializer(all_documents, many=True).data
-                
-                return Response(response_data, status=status.HTTP_200_OK)
-                
-        except ValidationError as e:
-            return Response(
-                {"error": "Validation error", "details": e.message_dict}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        except Exception as e:
-            return Response(
-                {"error": "Failed to update case", "details": str(e)}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+                    # Handle supporting documents
+                    if files:
+                        new_documents = save_supporting_documents(case, files, descriptions)
+                        serializer = self._get_serializer(case)  # Refresh serializer
+                        response_data = serializer.data
+                    else:
+                        response_data = serializer.data
+
+                    return Response(response_data, status=status.HTTP_200_OK)
+                else:
+                    return Response(
+                        {"error": "Validation error", "details": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                    
+            except ValidationError as e:
+                return Response(
+                    {"error": "Validation error", "details": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except Exception as e:
+                return Response(
+                    {"error": "Failed to update case", "details": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
     
     def delete(self, request, pk):
-        case = get_object_or_404(Case, pk=pk)
-        
-        # Only allow deletion by case owner or assigned agent
-        if not self._has_permission(request.user, case):
+        """Delete a case"""
+        with transaction.atomic():
+            case = get_object_or_404(Case, pk=pk)
+            
+            # Check permissions
+            if not self._has_permission(request.user, case):
+                return Response(
+                    {"error": "You do not have permission to delete this case."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            case.delete()
             return Response(
-                {"error": "You do not have permission to delete this case."}, 
-                status=status.HTTP_403_FORBIDDEN
+                {"message": "Case deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT
             )
-        
-        case.delete()  # This will cascade delete supporting documents
-        return Response(
-            {"message": "Case deleted successfully"}, 
-            status=status.HTTP_204_NO_CONTENT
-        )
     
     def _has_permission(self, user, case):
         """Check if user has permission to access the case"""
-        return (user == case.customer or 
-                (case.agent and case.agent == user) or
-                (hasattr(user, 'is_agent') and user.is_agent and case.agent is None))
+        return (
+            user == case.customer or
+            (case.agent and case.agent == user) or
+            (hasattr(user, 'is_agent') and user.is_agent)
+        )
     
     def _get_serializer(self, case, data=None, partial=False):
-        """Get the appropriate serializer based on case type"""
+        """Get appropriate serializer based on case type"""
         if hasattr(case, 'cryptolossreport'):
             return CryptoLossReportSerializer(
                 case.cryptolossreport, data=data, partial=partial
@@ -431,8 +414,7 @@ class CaseDetailView(APIView):
             return MoneyRecoveryReportSerializer(
                 case.moneyrecoveryreport, data=data, partial=partial
             )
-        else:
-            return CaseSerializer(case, data=data, partial=partial)
+        return CaseSerializer(case, data=data, partial=partial)
 
 class SupportingDocumentsAPIView(APIView):
     """Separate endpoint for managing supporting documents"""
