@@ -462,17 +462,3 @@ class CaseAnalyticsView(APIView):
         """Get priority distribution"""
         return list(cases.values('priority').annotate(count=Count('priority')))
 
-
-# URLs configuration (add this to your urls.py)
-"""
-from django.urls import path
-from . import views
-
-urlpatterns = [
-    path('health/', views.HealthCheckView.as_view(), name='health_check'),
-    path('auth/dashboard/', views.DashboardView.as_view(), name='dashboard'),
-    path('api/case-stats/', views.CaseTypeStatsView.as_view(), name='case_type_stats'),
-    path('api/case-stats/<str:case_type>/', views.CaseTypeStatsView.as_view(), name='case_type_stats_filtered'),
-    path('api/case-analytics/', views.CaseAnalyticsView.as_view(), name='case_analytics'),
-]
-"""
