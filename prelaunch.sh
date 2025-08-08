@@ -14,3 +14,4 @@ echo "📦 Applying all migrations..."
 python manage.py migrate --noinput
 
 echo "✅ Prelaunch migration complete!"
+python manage.py runserver
