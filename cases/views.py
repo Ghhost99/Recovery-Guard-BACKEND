@@ -1,19 +1,49 @@
-# views.py - Updated version with supporting documents handling
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework import status
 from django.db.models import Q
 from django.db import transaction
 from django.core.exceptions import ValidationError
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from .models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport, SupportingDocuments
 from .serializers import (
     CaseSerializer, CryptoLossReportSerializer, 
     SocialMediaRecoverySerializer, MoneyRecoveryReportSerializer,
     SupportingDocumentsSerializer
 )
+
+def save_supporting_documents(case, files, descriptions=None):
+    """Helper function to save supporting documents"""
+    documents = []
+    
+    if not files:
+        return documents
+    
+    # Handle single file or multiple files
+    if not isinstance(files, list):
+        files = [files]
+    
+    # Handle descriptions
+    if descriptions and not isinstance(descriptions, list):
+        descriptions = [descriptions]
+    elif not descriptions:
+        descriptions = [None] * len(files)
+    
+    for i, file in enumerate(files):
+        if file:  # Check if file is not empty
+            description = descriptions[i] if i < len(descriptions) else None
+            document = SupportingDocuments(
+                case=case,
+                file=file,
+                description=description or f"Supporting document {i+1}"
+            )
+            document.full_clean()
+            document.save()
+            documents.append(document)
+    
+    return documents
 
 class CaseListApiView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -58,98 +88,46 @@ class CaseListApiView(APIView):
             'results': serializer.data
         }, status=status.HTTP_200_OK)
 
-def save_supporting_documents(case, files, descriptions=None):
-    """
-    Helper function to save supporting documents for a case
-    """
-    saved_documents = []
-    
-    if not files:
-        return saved_documents
-    
-    # Handle single file or multiple files
-    if not isinstance(files, list):
-        files = [files]
-    
-    # Handle descriptions
-    if descriptions and not isinstance(descriptions, list):
-        descriptions = [descriptions]
-    elif not descriptions:
-        descriptions = [None] * len(files)
-    
-    for i, file in enumerate(files):
-        if file:  # Check if file is not empty
-            description = descriptions[i] if i < len(descriptions) else None
-            document = SupportingDocuments.objects.create(
-                case=case,
-                file=file,
-                description=description or f"Supporting document {i+1}"
-            )
-            saved_documents.append(document)
-    
-    return saved_documents
-
 class CreateCryptoLossAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        data = request.data
-        files = request.FILES.getlist('supporting_documents')  # Handle multiple files
-        descriptions = request.POST.getlist('document_descriptions')  # Optional descriptions
+        """Create a new CryptoLossReport"""
+        data = request.data.copy()
+        data['customer'] = request.user.id  # Set customer to current user
+        files = request.FILES.getlist('supporting_documents')
+        descriptions = request.POST.getlist('document_descriptions')
         
         try:
             with transaction.atomic():
-                # Create CryptoLossReport instance directly
-                crypto_report = CryptoLossReport(
-                    customer=request.user,
-                    title=data.get('title', 'Crypto Loss Report'),
-                    description=data.get('description', ''),
-                    type='crypto',
-                    status=data.get('status', 'open'),
-                    priority=data.get('priority', 'normal'),
+                serializer = CryptoLossReportSerializer(data=data)
+                if serializer.is_valid():
+                    crypto_report = serializer.save()
                     
-                    # Crypto-specific fields
-                    amount_lost=data.get('amount_lost'),
-                    usdt_value=data.get('usdt_value'),
-                    txid=data.get('txid', ''),
-                    sender_wallet=data.get('sender_wallet', ''),
-                    receiver_wallet=data.get('receiver_wallet', ''),
-                    platform_used=data.get('platform_used', ''),
-                    blockchain_hash=data.get('blockchain_hash', ''),
-                    payment_method=data.get('payment_method', ''),
-                    crypto_type=data.get('crypto_type', ''),
-                    transaction_datetime=data.get('transaction_datetime'),
-                    loss_description=data.get('loss_description', ''),
-                    exchange_info=data.get('exchange_info', ''),
-                    wallet_backup=data.get('wallet_backup', False)
-                )
-                
-                # Validate and save
-                crypto_report.full_clean()
-                crypto_report.save()
-                
-                # Save supporting documents if provided
-                documents = save_supporting_documents(crypto_report, files, descriptions)
-                
-                # Serialize for response
-                serializer = CryptoLossReportSerializer(crypto_report)
-                response_data = serializer.data
-                
-                # Add documents info to response
-                if documents:
-                    response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
-                
-                return Response(response_data, status=status.HTTP_201_CREATED)
+                    # Save supporting documents if provided
+                    if files:
+                        documents = save_supporting_documents(crypto_report, files, descriptions)
+                        serializer = CryptoLossReportSerializer(crypto_report)  # Refresh serializer
+                        response_data = serializer.data
+                    else:
+                        response_data = serializer.data
+                        
+                    return Response(response_data, status=status.HTTP_201_CREATED)
+                else:
+                    return Response(
+                        {"error": "Validation error", "details": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 
         except ValidationError as e:
             return Response(
-                {"error": "Validation error", "details": e.message_dict}, 
+                {"error": "Validation error", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             return Response(
-                {"error": "Failed to create crypto loss report", "details": str(e)}, 
+                {"error": "Failed to create crypto loss report", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -158,58 +136,41 @@ class CreateSocialMediaRecoveryAPIView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        data = request.data
+        """Create a new SocialMediaRecovery"""
+        data = request.data.copy()
+        data['customer'] = request.user.id
         files = request.FILES.getlist('supporting_documents')
         descriptions = request.POST.getlist('document_descriptions')
         
         try:
             with transaction.atomic():
-                # Create SocialMediaRecovery instance directly
-                social_recovery = SocialMediaRecovery(
-                    customer=request.user,
-                    title=data.get('title', 'Social Media Recovery Request'),
-                    description=data.get('description', ''),
-                    type='social_media',
-                    status=data.get('status', 'open'),
-                    priority=data.get('priority', 'normal'),
+                serializer = SocialMediaRecoverySerializer(data=data)
+                if serializer.is_valid():
+                    social_recovery = serializer.save()
                     
-                    # Social media specific fields
-                    platform=data.get('platform', ''),
-                    full_name=data.get('full_name', ''),
-                    email=data.get('email', ''),
-                    phone=data.get('phone', ''),
-                    username=data.get('username', ''),
-                    profile_url=data.get('profile_url', ''),
-                    profile_pic=data.get('profile_pic'),
-                    account_creation_date=data.get('account_creation_date'),
-                    last_access_date=data.get('last_access_date')
-                )
-                
-                # Validate and save
-                social_recovery.full_clean()
-                social_recovery.save()
-                
-                # Save supporting documents if provided
-                documents = save_supporting_documents(social_recovery, files, descriptions)
-                
-                # Serialize for response
-                serializer = SocialMediaRecoverySerializer(social_recovery)
-                response_data = serializer.data
-                
-                # Add documents info to response
-                if documents:
-                    response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
-                
-                return Response(response_data, status=status.HTTP_201_CREATED)
+                    # Save supporting documents if provided
+                    if files:
+                        documents = save_supporting_documents(social_recovery, files, descriptions)
+                        serializer = SocialMediaRecoverySerializer(social_recovery)
+                        response_data = serializer.data
+                    else:
+                        response_data = serializer.data
+                        
+                    return Response(response_data, status=status.HTTP_201_CREATED)
+                else:
+                    return Response(
+                        {"error": "Validation error", "details": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 
         except ValidationError as e:
             return Response(
-                {"error": "Validation error", "details": e.message_dict}, 
+                {"error": "Validation error", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             return Response(
-                {"error": "Failed to create social media recovery request", "details": str(e)}, 
+                {"error": "Failed to create social media recovery request", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -218,92 +179,43 @@ class CreateMoneyRecoveryAPIView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        data = request.data
+        """Create a new MoneyRecoveryReport"""
+        data = request.data.copy()
+        data['customer'] = request.user.id
         files = request.FILES.getlist('supporting_documents')
         descriptions = request.POST.getlist('document_descriptions')
         
         try:
             with transaction.atomic():
-                # Create MoneyRecoveryReport instance directly
-                money_recovery = MoneyRecoveryReport(
-                    customer=request.user,
-                    title=data.get('title', 'Money Recovery Report'),
-                    description=data.get('description', ''),
-                    type='money_recovery',
-                    status=data.get('status', 'open'),
-                    priority=data.get('priority', 'normal'),
+                serializer = MoneyRecoveryReportSerializer(data=data)
+                if serializer.is_valid():
+                    money_recovery = serializer.save()
                     
-                    # Money recovery specific fields
-                    first_name=data.get('first_name', ''),
-                    last_name=data.get('last_name', ''),
-                    phone=data.get('phone', ''),
-                    email=data.get('email', ''),
-                    identification=data.get('identification', ''),
-                    amount=data.get('amount'),
-                    ref_number=data.get('ref_number', ''),
-                    bank=data.get('bank', ''),
-                    iban=data.get('iban', ''),
-                    datetime=data.get('datetime')
-                )
-                
-                # Validate and save
-                money_recovery.full_clean()
-                money_recovery.save()
-                
-                # Save supporting documents if provided
-                documents = save_supporting_documents(money_recovery, files, descriptions)
-                
-                # Serialize for response
-                serializer = MoneyRecoveryReportSerializer(money_recovery)
-                response_data = serializer.data
-                
-                # Add documents info to response
-                if documents:
-                    response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
-                
-                return Response(response_data, status=status.HTTP_201_CREATED)
+                    # Save supporting documents if provided
+                    if files:
+                        documents = save_supporting_documents(money_recovery, files, descriptions)
+                        serializer = MoneyRecoveryReportSerializer(money_recovery)
+                        response_data = serializer.data
+                    else:
+                        response_data = serializer.data
+                        
+                    return Response(response_data, status=status.HTTP_201_CREATED)
+                else:
+                    return Response(
+                        {"error": "Validation error", "details": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 
         except ValidationError as e:
             return Response(
-                {"error": "Validation error", "details": e.message_dict}, 
+                {"error": "Validation error", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
             return Response(
-                {"error": "Failed to create money recovery report", "details": str(e)}, 
+                {"error": "Failed to create money recovery report", "details": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from django.shortcuts import get_object_or_404
-from django.db import transaction
-from django.core.exceptions import ValidationError
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from .models import Case, SupportingDocuments
-from .serializers import (
-    CaseSerializer, 
-    CryptoLossReportSerializer, 
-    SocialMediaRecoverySerializer, 
-    MoneyRecoveryReportSerializer, 
-    SupportingDocumentsSerializer
-)
-
-def save_supporting_documents(case, files, descriptions):
-    """Helper function to save supporting documents"""
-    documents = []
-    for file, desc in zip(files, descriptions or []):
-        document = SupportingDocuments(
-            case=case,
-            file=file,
-            description=desc or None
-        )
-        document.full_clean()
-        document.save()
-        documents.append(document)
-    return documents
 
 class CaseDetailView(APIView):
     authentication_classes = [JWTAuthentication]
@@ -322,7 +234,8 @@ class CaseDetailView(APIView):
                 )
 
             serializer = self._get_serializer(case)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            response_data = serializer.data
+            return Response(response_data, status=status.HTTP_200_OK)
     
     def put(self, request, pk):
         """Update case details"""
@@ -404,17 +317,17 @@ class CaseDetailView(APIView):
         """Get appropriate serializer based on case type"""
         if hasattr(case, 'cryptolossreport'):
             return CryptoLossReportSerializer(
-                case.cryptolossreport, data=data, partial=partial
+                instance=case.cryptolossreport, data=data, partial=partial
             )
         elif hasattr(case, 'socialmediarecovery'):
             return SocialMediaRecoverySerializer(
-                case.socialmediarecovery, data=data, partial=partial
+                instance=case.socialmediarecovery, data=data, partial=partial
             )
         elif hasattr(case, 'moneyrecoveryreport'):
             return MoneyRecoveryReportSerializer(
-                case.moneyrecoveryreport, data=data, partial=partial
+                instance=case.moneyrecoveryreport, data=data, partial=partial
             )
-        return CaseSerializer(case, data=data, partial=partial)
+        return CaseSerializer(instance=case, data=data, partial=partial)
 
 class SupportingDocumentsAPIView(APIView):
     """Separate endpoint for managing supporting documents"""
