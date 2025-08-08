@@ -17,7 +17,7 @@ urlpatterns = [
     path('api/chat/', include('chat.urls')),
 
     # 🟩 Additional views from `views.py`
-    path('auth/dashboard/', views.dashboard_view, name='dashboard'),
+    path('api/dashboard/', views.dashboard_view, name='dashboard'),
     path('api/case-stats/', views.case_type_stats, name='case_type_stats'),
     path('api/case-stats/<str:case_type>/', views.case_type_stats, name='case_type_stats_filtered'),
 ]

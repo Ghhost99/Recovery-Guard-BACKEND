@@ -18,7 +18,7 @@ from datetime import timedelta, datetime
 import json
 from decimal import Decimal
 
-from case.models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport, SupportingDocuments
+from cases.models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport, SupportingDocuments
 from accounts.models import CustomUser
 from notifications.models import Notification
 
