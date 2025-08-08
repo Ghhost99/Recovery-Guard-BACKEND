@@ -1,4 +1,4 @@
-# views.py - Direct model instance creation version
+# views.py - Updated version with supporting documents handling
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,10 +8,11 @@ from rest_framework import status
 from django.db.models import Q
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from .models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport
+from .models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport, SupportingDocuments
 from .serializers import (
     CaseSerializer, CryptoLossReportSerializer, 
-    SocialMediaRecoverySerializer, MoneyRecoveryReportSerializer
+    SocialMediaRecoverySerializer, MoneyRecoveryReportSerializer,
+    SupportingDocumentsSerializer
 )
 
 class CaseListApiView(APIView):
@@ -57,12 +58,45 @@ class CaseListApiView(APIView):
             'results': serializer.data
         }, status=status.HTTP_200_OK)
 
+def save_supporting_documents(case, files, descriptions=None):
+    """
+    Helper function to save supporting documents for a case
+    """
+    saved_documents = []
+    
+    if not files:
+        return saved_documents
+    
+    # Handle single file or multiple files
+    if not isinstance(files, list):
+        files = [files]
+    
+    # Handle descriptions
+    if descriptions and not isinstance(descriptions, list):
+        descriptions = [descriptions]
+    elif not descriptions:
+        descriptions = [None] * len(files)
+    
+    for i, file in enumerate(files):
+        if file:  # Check if file is not empty
+            description = descriptions[i] if i < len(descriptions) else None
+            document = SupportingDocuments.objects.create(
+                case=case,
+                file=file,
+                description=description or f"Supporting document {i+1}"
+            )
+            saved_documents.append(document)
+    
+    return saved_documents
+
 class CreateCryptoLossAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
         data = request.data
+        files = request.FILES.getlist('supporting_documents')  # Handle multiple files
+        descriptions = request.POST.getlist('document_descriptions')  # Optional descriptions
         
         try:
             with transaction.atomic():
@@ -95,9 +129,18 @@ class CreateCryptoLossAPIView(APIView):
                 crypto_report.full_clean()
                 crypto_report.save()
                 
+                # Save supporting documents if provided
+                documents = save_supporting_documents(crypto_report, files, descriptions)
+                
                 # Serialize for response
                 serializer = CryptoLossReportSerializer(crypto_report)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                response_data = serializer.data
+                
+                # Add documents info to response
+                if documents:
+                    response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
                 
         except ValidationError as e:
             return Response(
@@ -116,6 +159,8 @@ class CreateSocialMediaRecoveryAPIView(APIView):
     
     def post(self, request):
         data = request.data
+        files = request.FILES.getlist('supporting_documents')
+        descriptions = request.POST.getlist('document_descriptions')
         
         try:
             with transaction.atomic():
@@ -144,9 +189,18 @@ class CreateSocialMediaRecoveryAPIView(APIView):
                 social_recovery.full_clean()
                 social_recovery.save()
                 
+                # Save supporting documents if provided
+                documents = save_supporting_documents(social_recovery, files, descriptions)
+                
                 # Serialize for response
                 serializer = SocialMediaRecoverySerializer(social_recovery)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                response_data = serializer.data
+                
+                # Add documents info to response
+                if documents:
+                    response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
                 
         except ValidationError as e:
             return Response(
@@ -165,6 +219,8 @@ class CreateMoneyRecoveryAPIView(APIView):
     
     def post(self, request):
         data = request.data
+        files = request.FILES.getlist('supporting_documents')
+        descriptions = request.POST.getlist('document_descriptions')
         
         try:
             with transaction.atomic():
@@ -194,9 +250,18 @@ class CreateMoneyRecoveryAPIView(APIView):
                 money_recovery.full_clean()
                 money_recovery.save()
                 
+                # Save supporting documents if provided
+                documents = save_supporting_documents(money_recovery, files, descriptions)
+                
                 # Serialize for response
                 serializer = MoneyRecoveryReportSerializer(money_recovery)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
+                response_data = serializer.data
+                
+                # Add documents info to response
+                if documents:
+                    response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
                 
         except ValidationError as e:
             return Response(
@@ -225,7 +290,14 @@ class CaseDetailView(APIView):
 
         # Get the appropriate serializer based on case type
         serializer = self._get_serializer(case)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        response_data = serializer.data
+        
+        # Add supporting documents to response
+        documents = case.supporting_documents.all()
+        if documents.exists():
+            response_data['supporting_documents'] = SupportingDocumentsSerializer(documents, many=True).data
+        
+        return Response(response_data, status=status.HTTP_200_OK)
     
     def put(self, request, pk):
         case = get_object_or_404(Case, pk=pk)
@@ -237,10 +309,13 @@ class CaseDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        data = request.data
+        files = request.FILES.getlist('supporting_documents')
+        descriptions = request.POST.getlist('document_descriptions')
+
         try:
             with transaction.atomic():
                 # Update fields directly on the model instance
-                data = request.data
                 
                 # Update base Case fields
                 base_fields = ['title', 'description', 'status', 'priority', 'resolution', 'resolution_status']
@@ -293,9 +368,21 @@ class CaseDetailView(APIView):
                     case.moneyrecoveryreport.full_clean()
                     case.moneyrecoveryreport.save()
                 
+                # Save additional supporting documents if provided
+                new_documents = []
+                if files:
+                    new_documents = save_supporting_documents(case, files, descriptions)
+                
                 # Return serialized response
                 serializer = self._get_serializer(case)
-                return Response(serializer.data, status=status.HTTP_200_OK)
+                response_data = serializer.data
+                
+                # Add all supporting documents to response
+                all_documents = case.supporting_documents.all()
+                if all_documents.exists():
+                    response_data['supporting_documents'] = SupportingDocumentsSerializer(all_documents, many=True).data
+                
+                return Response(response_data, status=status.HTTP_200_OK)
                 
         except ValidationError as e:
             return Response(
@@ -318,7 +405,7 @@ class CaseDetailView(APIView):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        case.delete()
+        case.delete()  # This will cascade delete supporting documents
         return Response(
             {"message": "Case deleted successfully"}, 
             status=status.HTTP_204_NO_CONTENT
@@ -346,6 +433,62 @@ class CaseDetailView(APIView):
             )
         else:
             return CaseSerializer(case, data=data, partial=partial)
+
+class SupportingDocumentsAPIView(APIView):
+    """Separate endpoint for managing supporting documents"""
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, case_pk):
+        """Add supporting documents to an existing case"""
+        case = get_object_or_404(Case, pk=case_pk)
+        
+        # Check permissions
+        if not (request.user == case.customer or 
+                (case.agent and case.agent == request.user) or
+                (hasattr(request.user, 'is_agent') and request.user.is_agent and case.agent is None)):
+            return Response(
+                {"error": "You do not have permission to add documents to this case."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        files = request.FILES.getlist('files')
+        descriptions = request.POST.getlist('descriptions')
+        
+        if not files:
+            return Response(
+                {"error": "No files provided"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            documents = save_supporting_documents(case, files, descriptions)
+            serializer = SupportingDocumentsSerializer(documents, many=True)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response(
+                {"error": "Failed to save documents", "details": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def delete(self, request, case_pk, document_pk):
+        """Delete a specific supporting document"""
+        case = get_object_or_404(Case, pk=case_pk)
+        document = get_object_or_404(SupportingDocuments, pk=document_pk, case=case)
+        
+        # Check permissions
+        if not (request.user == case.customer or 
+                (case.agent and case.agent == request.user)):
+            return Response(
+                {"error": "You do not have permission to delete this document."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        document.delete()
+        return Response(
+            {"message": "Document deleted successfully"}, 
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 class CaseStatsAPIView(APIView):
     authentication_classes = [JWTAuthentication]

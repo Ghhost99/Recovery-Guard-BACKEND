@@ -2,11 +2,49 @@
 # serializers.py - Improved version
 from rest_framework import serializers
 from .models import Case, CryptoLossReport, SocialMediaRecovery, MoneyRecoveryReport, SupportingDocuments
+# Add this to your serializers.py file
+from rest_framework import serializers
+from .models import SupportingDocuments
 
 class SupportingDocumentsSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+    file_size = serializers.SerializerMethodField()
+    file_name = serializers.SerializerMethodField()
+    
     class Meta:
         model = SupportingDocuments
-        fields = ['id', 'file', 'description', 'uploaded_at']
+        fields = [
+            'id', 
+            'file', 
+            'file_url', 
+            'file_name', 
+            'file_size', 
+            'description', 
+            'uploaded_at', 
+            'case'
+        ]
+        read_only_fields = ['id', 'uploaded_at', 'case']
+    
+    def get_file_url(self, obj):
+        """Get the URL of the uploaded file"""
+        if obj.file:
+            return obj.file.url
+        return None
+    
+    def get_file_size(self, obj):
+        """Get the size of the uploaded file in bytes"""
+        if obj.file:
+            try:
+                return obj.file.size
+            except:
+                return None
+        return None
+    
+    def get_file_name(self, obj):
+        """Get the original name of the uploaded file"""
+        if obj.file:
+            return obj.file.name.split('/')[-1]  # Get just the filename
+        return None
 
 class CaseSerializer(serializers.ModelSerializer):
     supporting_documents = SupportingDocumentsSerializer(many=True, read_only=True)
