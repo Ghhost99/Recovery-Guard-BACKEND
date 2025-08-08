@@ -3,8 +3,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import HealthCheckView
-import views
+from .views import *
 
 urlpatterns = [
     path('', HealthCheckView.as_view()),
@@ -17,9 +16,9 @@ urlpatterns = [
     path('api/chat/', include('chat.urls')),
 
     # 🟩 Additional views from `views.py`
-    path('api/dashboard/', views.dashboard_view, name='dashboard'),
-    path('api/case-stats/', views.case_type_stats, name='case_type_stats'),
-    path('api/case-stats/<str:case_type>/', views.case_type_stats, name='case_type_stats_filtered'),
+    path('api/dashboard/', dashboard_view, name='dashboard'),
+    path('api/case-stats/', case_type_stats, name='case_type_stats'),
+    path('api/case-stats/<str:case_type>/', case_type_stats, name='case_type_stats_filtered'),
 ]
 
 # 🟦 Static/media files in development
