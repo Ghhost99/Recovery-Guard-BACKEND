@@ -11,7 +11,7 @@ from .views import (
 
 urlpatterns = [
     # Case listing and stats
-    path('/', CaseListApiView.as_view(), name='case-list'),
+    path('', CaseListApiView.as_view(), name='case-list'),
     path('stats/', CaseStatsAPIView.as_view(), name='case-stats'),
     
     # Case detail operations (GET, PUT, DELETE)
