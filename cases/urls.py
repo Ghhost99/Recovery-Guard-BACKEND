@@ -32,9 +32,9 @@ urlpatterns = [
     # Existing URLs
     path('cases/', CaseListApiView.as_view(), name='case-list'),
     path('cases/<int:pk>/', CaseDetailView.as_view(), name='case-detail'),
-    path('cases/crypto/create/', CreateCryptoLossAPIView.as_view(), name='create-crypto-loss'),
-    path('cases/social-media/create/', CreateSocialMediaRecoveryAPIView.as_view(), name='create-social-recovery'),
-    path('cases/money-recovery/create/', CreateMoneyRecoveryAPIView.as_view(), name='create-money-recovery'),
+    path('cases/crypto/', CreateCryptoLossAPIView.as_view(), name='create-crypto-loss'),
+    path('cases/social-media/', CreateSocialMediaRecoveryAPIView.as_view(), name='create-social-recovery'),
+    path('cases/money-recovery/', CreateMoneyRecoveryAPIView.as_view(), name='create-money-recovery'),
     path('cases/stats/', CaseStatsAPIView.as_view(), name='case-stats'),
     
     # New URLs for supporting documents
