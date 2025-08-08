@@ -24,7 +24,8 @@ class DashboardView(APIView):
     based on user role (customer, agent, or admin)
     """
     permission_classes = [IsAuthenticated]
-    
+    authentication_classes = [JWTAuthentication]
+
     def post(self, request):
         user = request.user
         
@@ -323,6 +324,8 @@ class DashboardView(APIView):
 class CaseTypeStatsView(APIView):
     """Get detailed stats for a specific case type"""
     permission_classes = [IsAuthenticated]
+     authentication_classes = [JWTAuthentication]
+
     
     def get(self, request, case_type=None):
         user = request.user
@@ -385,6 +388,8 @@ class CaseTypeStatsView(APIView):
 class CaseAnalyticsView(APIView):
     """Advanced analytics for cases"""
     permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
     
     def get(self, request):
         user = request.user
